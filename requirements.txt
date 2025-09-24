@@ -9,3 +9,4 @@ google-generativeai
 beautifulsoup4
 google-genai
 exa_py
+pypdf
