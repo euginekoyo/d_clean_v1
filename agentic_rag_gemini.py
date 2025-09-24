@@ -16,8 +16,6 @@ from qdrant_client.models import Distance, VectorParams
 from langchain_core.embeddings import Embeddings
 from agno.tools.exa import ExaTools
 
-# Set USER_AGENT to avoid warning from google-generativeai
-os.environ["USER_AGENT"] = "agentic-rag-gemini-app/1.0"
 
 class GeminiEmbedder(Embeddings):
     def __init__(self, model_name="models/text-embedding-004"):
@@ -35,8 +33,10 @@ class GeminiEmbedder(Embeddings):
         )
         return response['embedding']
 
+
 # Constants
 COLLECTION_NAME = "gemini-thinking-agent-agno"
+
 
 # Streamlit App Initialization
 st.title("🤔 Agentic RAG with Gemini Thinking and Agno")
@@ -63,13 +63,14 @@ if 'force_web_search' not in st.session_state:
 if 'similarity_threshold' not in st.session_state:
     st.session_state.similarity_threshold = 0.7
 
+
 # Sidebar Configuration
 st.sidebar.header("🔑 API Configuration")
 google_api_key = st.sidebar.text_input("Google API Key", type="password", value=st.session_state.google_api_key)
 qdrant_api_key = st.sidebar.text_input("Qdrant API Key", type="password", value=st.session_state.qdrant_api_key)
-qdrant_url = st.sidebar.text_input("Qdrant URL",
-                                  placeholder="https://your-cluster.cloud.qdrant.io:6333",
-                                  value=st.session_state.qdrant_url)
+qdrant_url = st.sidebar.text_input("Qdrant URL", 
+                                 placeholder="https://your-cluster.cloud.qdrant.io:6333",
+                                 value=st.session_state.qdrant_url)
 
 # Clear Chat Button
 if st.sidebar.button("🗑️ Clear Chat History"):
@@ -81,29 +82,29 @@ st.session_state.google_api_key = google_api_key
 st.session_state.qdrant_api_key = qdrant_api_key
 st.session_state.qdrant_url = qdrant_url
 
-# Web Search Configuration
+# Add in the sidebar configuration section, after the existing API inputs
 st.sidebar.header("🌐 Web Search Configuration")
 st.session_state.use_web_search = st.sidebar.checkbox("Enable Web Search Fallback", value=st.session_state.use_web_search)
 
 if st.session_state.use_web_search:
     exa_api_key = st.sidebar.text_input(
-        "Exa AI API Key",
+        "Exa AI API Key", 
         type="password",
         value=st.session_state.exa_api_key,
         help="Required for web search fallback when no relevant documents are found"
     )
     st.session_state.exa_api_key = exa_api_key
-
+    
     # Optional domain filtering
     default_domains = ["arxiv.org", "wikipedia.org", "github.com", "medium.com"]
     custom_domains = st.sidebar.text_input(
-        "Custom domains (comma-separated)",
+        "Custom domains (comma-separated)", 
         value=",".join(default_domains),
         help="Enter domains to search from, e.g.: arxiv.org,wikipedia.org"
     )
     search_domains = [d.strip() for d in custom_domains.split(",") if d.strip()]
 
-# Search Configuration
+# Add this to the sidebar configuration section
 st.sidebar.header("🎯 Search Configuration")
 st.session_state.similarity_threshold = st.sidebar.slider(
     "Document Similarity Threshold",
@@ -112,6 +113,7 @@ st.session_state.similarity_threshold = st.sidebar.slider(
     value=0.7,
     help="Lower values will return more documents but might be less relevant. Higher values are more strict."
 )
+
 
 # Utility Functions
 def init_qdrant():
@@ -128,6 +130,7 @@ def init_qdrant():
         st.error(f"🔴 Qdrant connection failed: {str(e)}")
         return None
 
+
 # Document Processing Functions
 def process_pdf(file) -> List:
     """Process PDF file and add source metadata."""
@@ -136,7 +139,7 @@ def process_pdf(file) -> List:
             tmp_file.write(file.getvalue())
             loader = PyPDFLoader(tmp_file.name)
             documents = loader.load()
-
+            
             # Add source metadata
             for doc in documents:
                 doc.metadata.update({
@@ -144,7 +147,7 @@ def process_pdf(file) -> List:
                     "file_name": file.name,
                     "timestamp": datetime.now().isoformat()
                 })
-
+                
             text_splitter = RecursiveCharacterTextSplitter(
                 chunk_size=1000,
                 chunk_overlap=200
@@ -153,6 +156,7 @@ def process_pdf(file) -> List:
     except Exception as e:
         st.error(f"📄 PDF processing error: {str(e)}")
         return []
+
 
 def process_web(url: str) -> List:
     """Process web URL and add source metadata."""
@@ -166,7 +170,7 @@ def process_web(url: str) -> List:
             )
         )
         documents = loader.load()
-
+        
         # Add source metadata
         for doc in documents:
             doc.metadata.update({
@@ -174,7 +178,7 @@ def process_web(url: str) -> List:
                 "url": url,
                 "timestamp": datetime.now().isoformat()
             })
-
+            
         text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=1000,
             chunk_overlap=200
@@ -183,6 +187,7 @@ def process_web(url: str) -> List:
     except Exception as e:
         st.error(f"🌐 Web processing error: {str(e)}")
         return []
+
 
 # Vector Store Management
 def create_vector_store(client, texts):
@@ -201,30 +206,31 @@ def create_vector_store(client, texts):
         except Exception as e:
             if "already exists" not in str(e).lower():
                 raise e
-
+        
         # Initialize vector store
         vector_store = QdrantVectorStore(
             client=client,
             collection_name=COLLECTION_NAME,
             embedding=GeminiEmbedder()
         )
-
+        
         # Add documents
         with st.spinner('📤 Uploading documents to Qdrant...'):
             vector_store.add_documents(texts)
             st.success("✅ Documents stored successfully!")
             return vector_store
-
+            
     except Exception as e:
         st.error(f"🔴 Vector store error: {str(e)}")
         return None
 
-# Agent Functions
+
+# Add this after the GeminiEmbedder class
 def get_query_rewriter_agent() -> Agent:
     """Initialize a query rewriting agent."""
     return Agent(
         name="Query Rewriter",
-        model=Gemini(id="gemini-1.5-flash"),
+        model=Gemini(id="gemini-exp-1206"),
         instructions="""You are an expert at reformulating questions to be more precise and detailed. 
         Your task is to:
         1. Analyze the user's question
@@ -240,14 +246,16 @@ def get_query_rewriter_agent() -> Agent:
         User: "Tell me about transformers"
         Output: "Explain the architecture, mechanisms, and applications of Transformer neural networks in natural language processing and deep learning"
         """,
+        show_tool_calls=False,
         markdown=True,
     )
+
 
 def get_web_search_agent() -> Agent:
     """Initialize a web search agent."""
     return Agent(
         name="Web Search Agent",
-        model=Gemini(id="gemini-1.5-flash"),
+        model=Gemini(id="gemini-exp-1206"),
         tools=[ExaTools(
             api_key=st.session_state.exa_api_key,
             include_domains=search_domains,
@@ -258,14 +266,16 @@ def get_web_search_agent() -> Agent:
         2. Compile and summarize the most relevant information
         3. Include sources in your response
         """,
+        show_tool_calls=True,
         markdown=True,
     )
+
 
 def get_rag_agent() -> Agent:
     """Initialize the main RAG agent."""
     return Agent(
         name="Gemini RAG Agent",
-        model=Gemini(id="gemini-1.5-flash"),
+        model=Gemini(id="gemini-2.0-flash-thinking-exp-01-21"),
         instructions="""You are an Intelligent Agent specializing in providing accurate answers.
         
         When given context from documents:
@@ -278,8 +288,10 @@ def get_rag_agent() -> Agent:
         
         Always maintain high accuracy and clarity in your responses.
         """,
+        show_tool_calls=True,
         markdown=True,
     )
+
 
 def check_document_relevance(query: str, vector_store, threshold: float = 0.7) -> tuple[bool, List]:
     """
@@ -302,6 +314,7 @@ def check_document_relevance(query: str, vector_store, threshold: float = 0.7) -
     )
     docs = retriever.invoke(query)
     return bool(docs), docs
+
 
 # Main Application Flow
 if st.session_state.google_api_key:
@@ -351,6 +364,7 @@ if st.session_state.google_api_key:
                 st.sidebar.text(f"🌐 {source}")
 
     # Chat Interface
+    # Create two columns for chat input and search toggle
     chat_col, toggle_col = st.columns([0.9, 0.1])
 
     with chat_col:
